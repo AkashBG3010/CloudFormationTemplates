@@ -51,6 +51,16 @@
       "Description": "Subnet of us-east-1b",
       "Type": "String",
       "Default": "us-east-1b | subnet-0fe4083cad4e716ca"
+    },
+    "ConnectionArn": {
+      "Description": "Codestar Connection Arn",
+      "Type": "String",
+      "Default": "arn:aws:codestar-connections:us-east-1:085781150237:connection/26b4fdc6-9a81-469f-8409-104b3d042be2"
+    },
+    "FullRepositoryId": {
+      "Description": "GitHub Repository ID/Name",
+      "Type": "String",
+      "Default": "AkashBG3010/nodejs-express-on-aws-ec2"
     }
   },
   "Resources": {
@@ -125,7 +135,18 @@
         "DeploymentGroupName": "CodeDeploymentGroup",
         "ServiceRoleArn": {
           "Ref": "ServiceRoleArn"
+        },
+        "OnPremisesInstanceTagFilters" : [
+        {
+          "Key" : {
+            "Ref": "KeyName"
+          },
+          "Type" : "KEY_AND_VALUE",
+          "Value" : {
+            "Ref": "KeyValue"
+          }
         }
+      ]
       }
     },
     "CodeStarConnection": {
@@ -160,8 +181,12 @@
                 ],
                 "RunOrder": 1,
                 "Configuration": {
-                  "ConnectionArn": "arn:aws:codestar-connections:us-east-1:085781150237:connection/26b4fdc6-9a81-469f-8409-104b3d042be2",
-                  "FullRepositoryId": "AkashBG3010/nodejs-express-on-aws-ec2",
+                  "ConnectionArn": {
+                    "Ref": "ConnectionArn"
+                  },
+                  "FullRepositoryId": {
+                    "Ref": "FullRepositoryId"
+                  },
                   "BranchName": "main"
                 }
               }
