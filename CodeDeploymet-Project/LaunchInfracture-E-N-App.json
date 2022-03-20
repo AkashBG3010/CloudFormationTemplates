@@ -1,0 +1,223 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Creating launch configuration by a stack for hosting a simple express-node application from github",
+  "Parameters": {
+    "ImageId": {
+      "Type": "String",
+      "Description": "Ubuntu AMI for N.virginia us-east1 Region",
+      "Default": "ami-07c56f2320f3e398e"
+    },
+    "InstanceType": {
+      "Type": "String",
+      "Description": "Choosing  t2 micro because it is free",
+      "Default": "t2.micro"
+    },
+    "KeyName": {
+      "Description": "SSH Keypair to login to the instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default": "my-project-key"
+    },
+    "TagKey": {
+      "Description": "The EC2 tag key that identifies this as a target for deployments.",
+      "Type": "String",
+      "Default": "Name"
+    },
+    "TagValue": {
+      "Description": "The EC2 tag value that identifies this as a target for deployments.",
+      "Type": "String",
+      "Default": "WebserverEc2"
+    },
+    "IamInstanceProfile": {
+      "Description": "Role for code deployment for EC2 instance",
+      "Type": "String",
+      "Default": "arn:aws:iam::085781150237:instance-profile/EC2CodeDeployRole"
+    },
+    "SecurityGroupIds": {
+      "Description": "Role for code deployment for EC2 instance",
+      "Type": "String",
+      "Default": "sg-0807dc6f09a9b336a"
+    },
+    "ServiceRoleArn": {
+      "Description": "Role for code-deploy",
+      "Type": "String",
+      "Default": "arn:aws:iam::085781150237:role/CodeDeployRole"
+    },
+    "Subnet1": {
+      "Description": "Subnet of us-east-1a",
+      "Type": "String",
+      "Default": "us-east-1a | subnet-0f4ea87d3da52499a"
+    },
+    "Subnet2": {
+      "Description": "Subnet of us-east-1b",
+      "Type": "String",
+      "Default": "us-east-1b | subnet-0fe4083cad4e716ca"
+    }
+  },
+  "Resources": {
+    "myLaunchTemplate": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateName": "MyProject-LT",
+        "LaunchTemplateData": {
+          "IamInstanceProfile": {
+            "Ref": "IamInstanceProfile"
+          },
+          "DisableApiTermination": "true",
+          "ImageId": {
+            "Ref": "ImageId"
+          },
+          "InstanceType": {
+            "Ref": "InstanceType"
+          },
+          "KeyName": {
+            "Ref": "KeyName"
+          },
+          "SecurityGroupIds": [
+            {
+              "Ref": "SecurityGroupIds"
+            }
+          ]
+        }
+      }
+    },
+    "myASG": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "Properties": {
+        "AutoScalingGroupName": "myASG",
+        "LaunchTemplate": {
+          "LaunchTemplateId": {
+            "Ref": "myLaunchTemplate"
+          },
+          "Version": {
+            "Fn::GetAtt": [
+              "myLaunchTemplate",
+              "DefaultVersionNumber"
+            ]
+          }
+        },
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "Subnet1"
+          },
+          {
+            "Ref": "Subnet2"
+          }
+        ],
+        "HealthCheckGracePeriod": 300,
+        "DesiredCapacity": "1",
+        "MinSize": "1",
+        "MaxSize": "2"
+      }
+    },
+    "CodeDeployApplication": {
+      "Type": "AWS::CodeDeploy::Application",
+      "Properties": {
+        "ApplicationName": "Node-Express-Application",
+        "ComputePlatform": "Server"
+      }
+    },
+    "CodeDeploymentGroup": {
+      "Type": "AWS::CodeDeploy::DeploymentGroup",
+      "Properties": {
+        "ApplicationName": {
+          "Ref": "CodeDeployApplication"
+        },
+        "DeploymentGroupName": "CodeDeploymentGroup",
+        "ServiceRoleArn": {
+          "Ref": "ServiceRoleArn"
+        }
+      }
+    },
+    "CodeStarConnection": {
+      "Type": "AWS::CodeStarConnections::Connection",
+      "Properties": {
+        "ConnectionName": "Express-Node-Github-Connection",
+        "ProviderType": "GitHub"
+      }
+    },
+    "CodePipeline": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "Name": "Express-Node-Pipeline",
+        "Stages": [
+          {
+            "Name": "Source",
+            "Actions": [
+              {
+                "InputArtifacts": [],
+                "ActionTypeId": {
+                  "Version": "1",
+                  "Owner": "AWS",
+                  "Category": "Source",
+                  "Provider": {
+                    "Ref": "CodeStarConnection"
+                  }
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "SourceArtifact"
+                  }
+                ],
+                "RunOrder": 1,
+                "Configuration": {
+                  "ConnectionArn": "arn:aws:codestar-connections:us-east-1:085781150237:connection/26b4fdc6-9a81-469f-8409-104b3d042be2",
+                  "FullRepositoryId": "AkashBG3010/nodejs-express-on-aws-ec2",
+                  "BranchName": "main"
+                }
+              }
+            ]
+          },
+          {
+            "Name": "Deploy",
+            "Actions": [
+              {
+                "Name": "Deploy",
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Version": "1",
+                  "Provider": "CodeDeploy"
+                },
+                "Configuration": {
+                  "ApplicationName": {
+                    "Ref": "CodeDeployApplication"
+                  },
+                  "DeploymentGroupName": {
+                    "Ref": "CodeDeploymentGroup"
+                  }
+                },
+                "RunOrder": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "InstanceId": {
+      "Description": "InstanceId of the newly created EC2 instance",
+      "Value": {
+        "Ref": "Webserver-ec2"
+      }
+    },
+    "PublicDNS": {
+      "Description": "Public DNSName of the newly created EC2 instance",
+      "Value": {
+        "Fn::GetAtt": [
+          "Webserver-ec2",
+          "PublicDnsName"
+        ]
+      }
+    },
+    "PublicIP": {
+      "Description": "Public IP address of the newly created EC2 instance",
+      "Value": {
+        "Fn::GetAtt": [
+          "Webserver-ec2",
+          "PublicIp"
+        ]
+      }
+    }
+  }
+}
