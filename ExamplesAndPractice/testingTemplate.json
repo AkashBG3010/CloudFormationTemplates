@@ -1,0 +1,124 @@
+{
+   "AWSTemplateFormatVersion": "2010-09-09",
+   "Description": "Creating launch configuration by a stack for hosting a simple express-node application from github",
+   "Parameters": {
+      "ImageId": {
+         "Type": "String",
+         "Description": "Ubuntu AMI for N.virginia us-east1 Region",
+         "Default": "ami-07c56f2320f3e398e"
+      },
+      "VpcId": {
+         "Type": "String",
+         "Description": "VPC id",
+         "Default": "vpc-0ed6ee5c6949798e9"
+      },
+      "SubnetId": {
+         "Type": "String",
+         "Description": "Subnet in which to launch an EC2",
+         "Default": "subnet-0f4ea87d3da52499a"
+      },
+      "AvailabilityZone": {
+         "Type": "String",
+         "Description": "Availability Zone into which instance will launch",
+         "Default": "us-east-1a"
+      },
+      "InstanceType": {
+         "Type": "String",
+         "Description": "Choosing  t2 micro because it is free",
+         "Default": "t2.micro"
+      },
+      "KeyName": {
+         "Description": "SSH Keypair to login to the instance",
+         "Type": "AWS::EC2::KeyPair::KeyName",
+         "Default": "my-project-key"
+      },
+      "SSHLocation": {
+         "Description": "The IP address range that can be used to SSH to the EC2 instances",
+         "Type": "String",
+         "Default": "0.0.0.0/0"
+      },
+      "TagKey": {
+         "Description": "The EC2 tag key that identifies this as a target for deployments.",
+         "Type": "String",
+         "Default": "Name"
+      },
+      "TagValue": {
+         "Description": "The EC2 tag value that identifies this as a target for deployments.",
+         "Type": "String",
+         "Default": "WebserverEc2"
+      }
+   },
+   "Resources": {
+      "EC2Instance": {
+         "Type": "AWS::EC2::Instance",
+         "Properties": {
+            "ImageId": {
+               "Ref": "ImageId"
+            },
+            "InstanceType": {
+               "Ref": "InstanceType"
+            },
+            "AvailabilityZone": {
+               "Ref": "AvailabilityZone"
+            },
+            "KeyName": {
+               "Ref": "KeyName"
+            },
+            "SecurityGroupIds": [
+               {
+                  "Ref": "WebserverSecurityGroup"
+               }
+            ],
+            "SubnetId": {
+               "Ref": "SubnetId"
+            },
+            "IamInstanceProfile": "arn:aws:iam::085781150237:instance-profile/EC2CodeDeployRole",
+            "Tags": [
+               {
+                  "Key": {
+                     "Ref": "TagKey"
+                  },
+                  "Value": {
+                     "Ref": "TagValue"
+                  }
+               }
+            ]
+         }
+      },
+      "WebserverSecurityGroup": {
+         "Type": "AWS::EC2::SecurityGroup",
+         "Properties": {
+            "VpcId": {
+               "Ref": "VpcId"
+            },
+            "GroupDescription": "Enable SSH access via port 22, http via port 80 and 3000",
+            "SecurityGroupIngress": [
+               {
+                  "IpProtocol": "ssh",
+                  "FromPort": "22",
+                  "ToPort": "22",
+                  "CidrIp": {
+                     "Ref": "SSHLocation"
+                  }
+               },
+               {
+                  "IpProtocol": "http",
+                  "FromPort": "80",
+                  "ToPort": "80",
+                  "CidrIp": {
+                     "Ref": "SSHLocation"
+                  }
+               },
+               {
+                  "IpProtocol": "tcp",
+                  "FromPort": "3000",
+                  "ToPort": "3000",
+                  "CidrIp": {
+                     "Ref": "SSHLocation"
+                  }
+               }
+            ]
+         }
+      }
+   }
+}
