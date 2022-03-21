@@ -45,12 +45,32 @@
     "Subnet1": {
       "Description": "Subnet of us-east-1a",
       "Type": "String",
-      "Default": "us-east-1a | subnet-0f4ea87d3da52499a"
+      "Default": "subnet-0f4ea87d3da52499a"
     },
     "Subnet2": {
       "Description": "Subnet of us-east-1b",
       "Type": "String",
-      "Default": "us-east-1b | subnet-0fe4083cad4e716ca"
+      "Default": "subnet-0fe4083cad4e716ca"
+    },
+    "ConnectionArn": {
+      "Description": "Codestar Connection Arn",
+      "Type": "String",
+      "Default": "arn:aws:codestar-connections:us-east-1:085781150237:connection/26b4fdc6-9a81-469f-8409-104b3d042be2"
+    },
+    "FullRepositoryId": {
+      "Description": "GitHub Repository ID/Name",
+      "Type": "String",
+      "Default": "AkashBG3010/nodejs-express-on-aws-ec2"
+    },
+    "codePipelineRoleArn": {
+      "Description": "IAM service role for codePipeline",
+      "Type": "String",
+      "Default": "arn:aws:iam::085781150237:role/service-role/AWSCodePipelineServiceRole-us-east-1-express-app"
+    },
+    "ArtifactStoreS3Location": {
+      "Description": "S3 Bucket name/location",
+      "Type": "String",
+      "Default": "node-express-bucket"
     }
   },
   "Resources": {
@@ -60,7 +80,9 @@
         "LaunchTemplateName": "MyProject-LT",
         "LaunchTemplateData": {
           "IamInstanceProfile": {
-            "Ref": "IamInstanceProfile"
+            "Arn": {
+              "Ref": "IamInstanceProfile"
+            }
           },
           "DisableApiTermination": "true",
           "ImageId": {
@@ -80,10 +102,10 @@
         }
       }
     },
-    "myASG": {
+    "AutoScalingGroup": {
       "Type": "AWS::AutoScaling::AutoScalingGroup",
       "Properties": {
-        "AutoScalingGroupName": "myASG",
+        "AutoScalingGroupName": "myAuto-SG",
         "LaunchTemplate": {
           "LaunchTemplateId": {
             "Ref": "myLaunchTemplate"
@@ -106,7 +128,18 @@
         "HealthCheckGracePeriod": 300,
         "DesiredCapacity": "1",
         "MinSize": "1",
-        "MaxSize": "2"
+        "MaxSize": "2",
+        "Tags": [
+          {
+            "Key": {
+              "Ref": "TagKey"
+            },
+            "PropagateAtLaunch": true,
+            "Value": {
+              "Ref": "TagValue"
+            }
+          }
+        ]
       }
     },
     "CodeDeployApplication": {
@@ -119,13 +152,24 @@
     "CodeDeploymentGroup": {
       "Type": "AWS::CodeDeploy::DeploymentGroup",
       "Properties": {
+        "DeploymentGroupName": "CodeDeploymentGroup",
         "ApplicationName": {
           "Ref": "CodeDeployApplication"
         },
-        "DeploymentGroupName": "CodeDeploymentGroup",
         "ServiceRoleArn": {
           "Ref": "ServiceRoleArn"
-        }
+        },
+        "Ec2TagFilters": [
+          {
+            "Type": "KEY_AND_VALUE",
+            "Key": {
+              "Ref": "TagKey"
+            },
+            "Value": {
+              "Ref": "TagValue"
+            }
+          }
+        ]
       }
     },
     "CodeStarConnection": {
@@ -139,31 +183,43 @@
       "Type": "AWS::CodePipeline::Pipeline",
       "Properties": {
         "Name": "Express-Node-Pipeline",
+        "RestartExecutionOnUpdate": "true",
+        "RoleArn": {
+          "Ref": "codePipelineRoleArn"
+        },
+        "ArtifactStore": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "ArtifactStoreS3Location"
+          }
+        },
         "Stages": [
           {
             "Name": "Source",
             "Actions": [
               {
-                "InputArtifacts": [],
+                "Name": "SourceAction",
                 "ActionTypeId": {
                   "Version": "1",
                   "Owner": "AWS",
                   "Category": "Source",
-                  "Provider": {
-                    "Ref": "CodeStarConnection"
-                  }
+                  "Provider": "CodeStarSourceConnection"
                 },
                 "OutputArtifacts": [
                   {
-                    "Name": "SourceArtifact"
+                    "Name": "SourceOutput"
                   }
                 ],
-                "RunOrder": 1,
                 "Configuration": {
-                  "ConnectionArn": "arn:aws:codestar-connections:us-east-1:085781150237:connection/26b4fdc6-9a81-469f-8409-104b3d042be2",
-                  "FullRepositoryId": "AkashBG3010/nodejs-express-on-aws-ec2",
+                  "ConnectionArn": {
+                    "Ref": "ConnectionArn"
+                  },
+                  "FullRepositoryId": {
+                    "Ref": "FullRepositoryId"
+                  },
                   "BranchName": "main"
-                }
+                },
+                "RunOrder": "1"
               }
             ]
           },
@@ -171,7 +227,12 @@
             "Name": "Deploy",
             "Actions": [
               {
-                "Name": "Deploy",
+                "Name": "DeployAction",
+                "InputArtifacts": [
+                  {
+                    "Name": "SourceOutput"
+                  }
+                ],
                 "ActionTypeId": {
                   "Category": "Deploy",
                   "Owner": "AWS",
@@ -186,36 +247,10 @@
                     "Ref": "CodeDeploymentGroup"
                   }
                 },
-                "RunOrder": 1
+                "RunOrder": "1"
               }
             ]
           }
-        ]
-      }
-    }
-  },
-  "Outputs": {
-    "InstanceId": {
-      "Description": "InstanceId of the newly created EC2 instance",
-      "Value": {
-        "Ref": "Webserver-ec2"
-      }
-    },
-    "PublicDNS": {
-      "Description": "Public DNSName of the newly created EC2 instance",
-      "Value": {
-        "Fn::GetAtt": [
-          "Webserver-ec2",
-          "PublicDnsName"
-        ]
-      }
-    },
-    "PublicIP": {
-      "Description": "Public IP address of the newly created EC2 instance",
-      "Value": {
-        "Fn::GetAtt": [
-          "Webserver-ec2",
-          "PublicIp"
         ]
       }
     }
